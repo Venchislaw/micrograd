@@ -121,8 +121,10 @@ class Tensor:
 
             elif i > j:
                 other.broadcast_dim = n
+                break
             else:
-                self.check_broadcast = n
+                self.broadcast_dim = n
+                break
 
 
     @property
