@@ -1,94 +1,58 @@
+import numpy as np
 
-class Value:
-    """ stores a single scalar value and its gradient """
 
-    def __init__(self, data, _children=(), _op=''):
-        self.data = data
-        self.grad = 0
-        # internal variables used for autograd graph construction
+class Tensor:
+    def __init__(self, seq=[], prev=(), random_init=False, shape=None, op=""):
+        if not random_init and not shape:
+            self.seq = np.array(seq)
+        elif not random_init and shape:
+            self.seq = np.zeros(shape)
+        else:
+            self.seq = np.random.random(shape)
+
+        self.prev = set(prev)
+        self.op = op
+        self.grad = np.zeros(self.seq.shape)
         self._backward = lambda: None
-        self._prev = set(_children)
-        self._op = _op # the op that produced this node, for graphviz / debugging / etc
 
     def __add__(self, other):
-        other = other if isinstance(other, Value) else Value(other)
-        out = Value(self.data + other.data, (self, other), '+')
-
-        def _backward():
-            self.grad += out.grad
-            other.grad += out.grad
-        out._backward = _backward
-
+        other if isinstance(other, Tensor) else Tensor(other)
+        out = Tensor(self.seq + other.seq, prev=(self, other), op="+")
         return out
-
+    
     def __mul__(self, other):
-        other = other if isinstance(other, Value) else Value(other)
-        out = Value(self.data * other.data, (self, other), '*')
-
-        def _backward():
-            self.grad += other.data * out.grad
-            other.grad += self.data * out.grad
-        out._backward = _backward
-
+        other if isinstance(other, Tensor) else Tensor(other)
+        out = Tensor(self.seq * other.seq, prev=(self, other), op="*")
         return out
-
-    def __pow__(self, other):
-        assert isinstance(other, (int, float)), "only supporting int/float powers for now"
-        out = Value(self.data**other, (self,), f'**{other}')
-
-        def _backward():
-            self.grad += (other * self.data**(other-1)) * out.grad
-        out._backward = _backward
-
+    
+    def matmul(self, other):
+        other if isinstance(other, Tensor) else Tensor(other)
+        out = Tensor(np.dot(self.seq, other.seq), prev=(self, other), op="@")
         return out
-
-    def relu(self):
-        out = Value(0 if self.data < 0 else self.data, (self,), 'ReLU')
-
-        def _backward():
-            self.grad += (out.data > 0) * out.grad
-        out._backward = _backward
-
+    
+    def __neg__(self):
+        out = Tensor(-self.seq)
         return out
-
-    def backward(self):
-
-        # topological order all of the children in the graph
-        topo = []
-        visited = set()
-        def build_topo(v):
-            if v not in visited:
-                visited.add(v)
-                for child in v._prev:
-                    build_topo(child)
-                topo.append(v)
-        build_topo(self)
-
-        # go one variable at a time and apply the chain rule to get its gradient
-        self.grad = 1
-        for v in reversed(topo):
-            v._backward()
-
-    def __neg__(self): # -self
-        return self * -1
-
-    def __radd__(self, other): # other + self
-        return self + other
-
-    def __sub__(self, other): # self - other
-        return self + (-other)
-
-    def __rsub__(self, other): # other - self
-        return other + (-self)
-
-    def __rmul__(self, other): # other * self
-        return self * other
-
-    def __truediv__(self, other): # self / other
-        return self * other**-1
-
-    def __rtruediv__(self, other): # other / self
-        return other * self**-1
-
+    
+    def __sub__(self, other):
+        out = self + -other
+        return out
+    
+    def T(self):
+        out = Tensor(self.seq.T, prev=(self,), op="T")
+        return out
+    
+    def shape(self):
+        out = self.seq.shape
+        return out
+    
     def __repr__(self):
-        return f"Value(data={self.data}, grad={self.grad})"
+        return f"Tensor object: {self.seq}"
+
+X = Tensor([[1, 2], [3, 4], [5, 6]])
+w = Tensor(random_init=True, shape=(16, 2))
+b = Tensor(shape=(16, 1))
+
+res = w.matmul(X.T())
+print(res)
+print(res.grad)
