@@ -18,6 +18,12 @@ class Tensor:
     def __add__(self, other):
         other if isinstance(other, Tensor) else Tensor(other)
         out = Tensor(self.seq + other.seq, prev=(self, other), op="+")
+        out.grad = np.ones(out.shape())
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+
+        out._backward = _backward
         return out
     
     def __mul__(self, other):
@@ -54,5 +60,13 @@ w = Tensor(random_init=True, shape=(16, 2))
 b = Tensor(shape=(16, 1))
 
 res = w.matmul(X.T())
-print(res)
-print(res.grad)
+#print(res)
+
+
+res1 = w + b
+res1.grad = np.ones(res1.shape())
+# print(res1.grad)
+res1._backward()
+#print(res1)
+print(w.grad)
+print(b.grad)
