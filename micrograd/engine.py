@@ -40,8 +40,8 @@ class Tensor:
 
         def grad_func():
             # Note!!! It's not Tensor.dot, it's np.dot
-            self.grad += out.grad.dot(other.arr.T)
-            other.grad += self.grad.dot(self.arr.T)
+            self.grad += out.grad * other.arr
+            other.grad += out.grad * self.arr
         
         out.grad_func = grad_func()
         return out
@@ -49,9 +49,17 @@ class Tensor:
     def dot(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
         assert self.shape[-1] == other.shape[0]
-        out = np.dot(self.arr, other.arr)
+        out = Tensor(self.arr @ other.arr, prev=(self, other), op="dot")
 
-        return Tensor(out, prev=(self, other), op="dot")
+        self.check_broadcast(other)
+
+        def grad_func():
+            # Note!!! It's not Tensor.dot, it's np.dot
+            self.grad += out.grad.dot(other.arr.T)
+            other.grad += self.arr.T.dot(out.grad)
+
+        out.grad_fun = grad_func()
+        return out
     
 
     def check_broadcast(self, other):
@@ -99,4 +107,4 @@ res = mul + b
 res.grad = np.ones(res.shape)
 res.grad_func()
 mul.grad_func()
-print(b.grad)
+print(W.grad)
