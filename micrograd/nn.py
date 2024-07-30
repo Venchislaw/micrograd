@@ -1,60 +1,53 @@
 import random
-from micrograd.engine import Value
+from engine import Tensor
 
-class Module:
 
-    def zero_grad(self):
-        for p in self.parameters():
-            p.grad = 0
+class Layer:
+    def __init__(self, n_inputs, n_neurons, activation="linear"):
+        self.weights = Tensor(fill_random=True, shape=(n_neurons, n_inputs))
+        self.bias = Tensor(fill_zeros=True, shape=(n_neurons, 1))
+        self.activation = activation
 
-    def parameters(self):
-        return []
+    def __call__(self, X):
+        z = self.weights @ X + self.bias
+        activations = {"relu": z.relu, "sigmoid": z.sigmoid, "tanh": z.tanh}
+        a = activations[self.activation]()
+        
+        return a
+    
 
-class Neuron(Module):
+    def params(self):
+        return list(self.weights.arr) + list(self.bias.arr)
+    
 
-    def __init__(self, nin, nonlin=True):
-        self.w = [Value(random.uniform(-1,1)) for _ in range(nin)]
-        self.b = Value(0)
-        self.nonlin = nonlin
+X = Tensor([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]])    
 
-    def __call__(self, x):
-        act = sum((wi*xi for wi,xi in zip(self.w, x)), self.b)
-        return act.relu() if self.nonlin else act
 
-    def parameters(self):
-        return self.w + [self.b]
+class Sequential:
+    def __init__(self, layers=()):
+        self.layers = layers
 
-    def __repr__(self):
-        return f"{'ReLU' if self.nonlin else 'Linear'}Neuron({len(self.w)})"
+    def __call__(self, X):
+        for i, layer in enumerate(self.layers):
+            if i == 0:
+                X = layer(X.T)
+            else:
+                X = layer(X)
+        return X
+    
+    def params(self):
+        res = []
 
-class Layer(Module):
-
-    def __init__(self, nin, nout, **kwargs):
-        self.neurons = [Neuron(nin, **kwargs) for _ in range(nout)]
-
-    def __call__(self, x):
-        out = [n(x) for n in self.neurons]
-        return out[0] if len(out) == 1 else out
-
-    def parameters(self):
-        return [p for n in self.neurons for p in n.parameters()]
-
-    def __repr__(self):
-        return f"Layer of [{', '.join(str(n) for n in self.neurons)}]"
-
-class MLP(Module):
-
-    def __init__(self, nin, nouts):
-        sz = [nin] + nouts
-        self.layers = [Layer(sz[i], sz[i+1], nonlin=i!=len(nouts)-1) for i in range(len(nouts))]
-
-    def __call__(self, x):
         for layer in self.layers:
-            x = layer(x)
-        return x
+            res.extend(list(layer.weights.arr) + list(layer.bias.arr))
 
-    def parameters(self):
-        return [p for layer in self.layers for p in layer.parameters()]
+        return res
+    
+model = Sequential(layers=(
+    Layer(3, 6, activation="relu"),
+    Layer(6, 2, activation="relu"),
+    Layer(2, 1, activation="sigmoid")
+))
 
-    def __repr__(self):
-        return f"MLP of [{', '.join(str(layer) for layer in self.layers)}]"
+res = model(X)
+print(res.arr)

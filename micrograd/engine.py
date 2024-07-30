@@ -44,7 +44,7 @@ class Tensor:
         out.grad_func = grad_func
         return out
     
-    def dot(self, other):
+    def __matmul__(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
         assert self.shape[-1] == other.shape[0]
         out = Tensor(self.arr @ other.arr, prev=(self, other), op="dot")
@@ -89,7 +89,7 @@ class Tensor:
         return out
     
     def sigmoid(self):
-        out = Tensor(1 / 1 + np.exp(-self.arr), prev=(self, ), op="sigmoid")
+        out = Tensor(1 / (1 + np.exp(-self.arr)), prev=(self, ), op="sigmoid")
 
         def grad_func():
             self.grad += out.grad * (out.arr * (1 - out.arr))
@@ -122,7 +122,7 @@ class Tensor:
             elif i > j:
                 other.broadcast_dim = n
             else:
-                self.check_broadcast = n
+                self.broadcast_dim = n
 
 
     @property
@@ -155,7 +155,7 @@ W = Tensor(fill_random=True, shape=(10, 3))
 b = Tensor(fill_zeros=True, shape=(10, 1))
 
 Xt = X.T
-mul = W.dot(Xt)
+mul = W @ Xt
 res_z = mul + b
 res_a = res_z.tanh()
 
@@ -163,11 +163,9 @@ res_a.grad = np.ones(res_a.shape)
 res_a.grad_func()
 res_z.grad_func()
 mul.grad_func()
-print(W.grad)
 
 a = Tensor([1, 2, 3])
 
 z = a / Tensor([1, 2, 3])
 z.grad_func()
 
-print(z.grad)
