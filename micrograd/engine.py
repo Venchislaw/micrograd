@@ -2,7 +2,7 @@ import numpy as np
 
 
 class Tensor:
-    def __init__(self, arr=[], prev=(), op="", fill_random=False, fill_zeros=False, shape=None):
+    def __init__(self, arr=[], prev=(), op="", fill_random=False, fill_zeros=False, shape=None, name=""):
         if fill_random:
             assert shape is not None, "Must pass Shape with random fill"
             self.arr = np.random.random(shape)
@@ -16,6 +16,7 @@ class Tensor:
         self.op = op
         self.grad = np.zeros(self.arr.shape)
         self.broadcast_dim = None
+        self.name = name
 
         self.grad_func = lambda: None
 
@@ -47,7 +48,7 @@ class Tensor:
     def __matmul__(self, other):
         other = other if isinstance(other, Tensor) else Tensor(other)
         assert self.shape[-1] == other.shape[0]
-        out = Tensor(self.arr @ other.arr, prev=(self, other), op="dot")
+        out = Tensor(self.arr @ other.arr, prev=(self, other), op="@")
 
         def grad_func():
             # Note!!! It's not Tensor.dot, it's np.dot
@@ -71,8 +72,8 @@ class Tensor:
 
     def relu(self):
         out = Tensor(np.maximum(self.arr, 0), prev=(self,), op="ReLU")
-
         def grad_func():
+            print(out.grad)
             self.grad += out.grad * (self.arr > 0)
         
         out.grad_func = grad_func
@@ -88,6 +89,10 @@ class Tensor:
         out.grad_func = grad_func
         return out
     
+    def linear(self):
+        out = self
+        return out
+    
     def sigmoid(self):
         out = Tensor(1 / (1 + np.exp(-self.arr)), prev=(self, ), op="sigmoid")
 
@@ -95,7 +100,34 @@ class Tensor:
             self.grad += out.grad * (out.arr * (1 - out.arr))
 
         out.grad_func = grad_func
-        return out 
+        return out
+    
+    def se(self, y_true):
+        out = Tensor((self.arr - y_true.arr)**2, prev=(self, ), op="se")
+
+        def grad_func():
+            self.grad += out.grad
+
+        out.grad_func = grad_func
+        return out
+    
+    def backward(self):
+        self.grad = np.ones(self.shape)
+
+        topo = []
+        visited = set()
+        def build_topo(t):
+            if t not in visited:
+                visited.add(t)
+                for p in t.prev:
+                    build_topo(p)
+                topo.append(t)
+
+        build_topo(self)
+
+        for t in reversed(topo):
+            print(t.grad)
+            t.grad_func()
 
     def __neg__(self):
         return Tensor(-self.arr)
